@@ -144,6 +144,9 @@ def _collect_rng_states(include_cuda: bool = True) -> dict[str, Any]:
         states["numpy"] = np.random.get_state()
     if include_cuda:
         states["torch.cuda"] = torch.cuda.get_rng_state_all() if torch.cuda.is_available() else []
+    # Add NPU states
+    if getattr(torch, "npu", None) is not None and torch.npu.is_available():
+        states["torch.npu"] = torch.npu.get_rng_state_all()
     return states
 
 
@@ -154,6 +157,8 @@ def _set_rng_states(rng_state_dict: dict[str, Any]) -> None:
     # torch.cuda rng_state is only included since v1.8.
     if "torch.cuda" in rng_state_dict:
         torch.cuda.set_rng_state_all(rng_state_dict["torch.cuda"])
+    if "torch.npu" in rng_state_dict:
+        torch.npu.set_rng_state_all(rng_state_dict["torch.npu"])
     if _NUMPY_AVAILABLE and "numpy" in rng_state_dict:
         import numpy as np
 

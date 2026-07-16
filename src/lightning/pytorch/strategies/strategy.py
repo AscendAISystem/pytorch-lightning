@@ -364,7 +364,10 @@ class Strategy(ABC):
         return self._lightning_module
 
     def load_checkpoint(self, checkpoint_path: _PATH, weights_only: Optional[bool] = None) -> dict[str, Any]:
-        torch.cuda.empty_cache()
+        if torch.cuda.is_available():
+            torch.cuda.empty_cache()
+        if getattr(torch, "npu", None) is not None and torch.npu.is_available():
+            torch.npu.empty_cache()
         return self.checkpoint_io.load_checkpoint(checkpoint_path, weights_only=weights_only)
 
     def load_model_state_dict(self, checkpoint: Mapping[str, Any], strict: bool = True) -> None:
