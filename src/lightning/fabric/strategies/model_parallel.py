@@ -225,7 +225,7 @@ class ModelParallelStrategy(ParallelStrategy):
     def barrier(self, *args: Any, **kwargs: Any) -> None:
         if not _distributed_is_initialized():
             return
-        if torch.distributed.get_backend() == "nccl":
+        if torch.distributed.get_backend() in ("nccl", "hccl"):
             torch.distributed.barrier(device_ids=[self.root_device.index])
         else:
             torch.distributed.barrier()
