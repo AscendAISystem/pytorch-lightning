@@ -11,6 +11,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+import os
 from typing import Optional, Union
 
 import torch
@@ -88,7 +89,14 @@ class NPUAccelerator(Accelerator):
     @staticmethod
     @override
     def auto_device_count() -> int:
-        """Get the devices when set to auto."""
+        """Get the devices when set to auto.
+
+        The count respects the ``ASCEND_RT_VISIBLE_DEVICES`` environment variable. If the environment variable is set,
+        only devices specified in it are counted.
+
+        Returns:
+            The number of available NPU devices.
+        """
         if hasattr(torch, "npu") and torch.npu.is_available():
             return torch.npu.device_count()
         return 0
@@ -116,7 +124,12 @@ class NPUAccelerator(Accelerator):
 def _get_all_visible_npu_devices() -> list[int]:
     """Returns a list of all visible NPU devices.
 
+    Devices masked by the environment variable ``ASCEND_RT_VISIBLE_DEVICES`` won't be returned here.
+    For example, assume you have 8 physical NPU devices. If ``ASCEND_RT_VISIBLE_DEVICES="1,3,6"``,
+    then this function will return the list ``[0, 1, 2]`` because these are the three visible
+    NPU devices after applying the mask.
+
     Returns:
-        A list of all available NPU device indices.
+        A list of visible NPU device indices (0-indexed, sequential after masking).
     """
     return list(range(NPUAccelerator.auto_device_count()))
