@@ -30,6 +30,7 @@ from torch.optim import Optimizer
 from typing_extensions import override
 
 from lightning.fabric.accelerators import Accelerator, CUDAAccelerator
+from lightning.fabric.accelerators.npu import NPUAccelerator
 from lightning.fabric.plugins.collectives.torch_collective import default_pg_timeout
 from lightning.fabric.plugins.environments.cluster_environment import ClusterEnvironment
 from lightning.fabric.plugins.precision import Precision
@@ -530,7 +531,10 @@ class DeepSpeedStrategy(DDPStrategy, _Sharded):
 
         optimzer_state_requested = any(isinstance(item, (Optimizer, DeepSpeedOptimizer)) for item in state.values())
 
-        torch.cuda.empty_cache()
+        if torch.cuda.is_available():
+            torch.cuda.empty_cache()
+        if getattr(torch, "npu", None) is not None and torch.npu.is_available():
+            torch.npu.empty_cache()
         _, client_state = engine.load_checkpoint(
             path,
             tag="checkpoint",
@@ -639,9 +643,9 @@ class DeepSpeedStrategy(DDPStrategy, _Sharded):
 
     @override
     def setup_environment(self) -> None:
-        if not isinstance(self.accelerator, CUDAAccelerator):
+        if not isinstance(self.accelerator, (CUDAAccelerator, NPUAccelerator)):
             raise RuntimeError(
-                f"The DeepSpeed strategy is only supported on CUDA GPUs but `{self.accelerator.__class__.__name__}`"
+                f"The DeepSpeed strategy is only supported on CUDA/NPU GPUs but `{self.accelerator.__class__.__name__}`"
                 " is used."
             )
         super().setup_environment()

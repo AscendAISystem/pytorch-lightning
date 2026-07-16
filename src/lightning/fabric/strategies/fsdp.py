@@ -270,7 +270,7 @@ class FSDPStrategy(ParallelStrategy, _Sharded):
         if isinstance(self._fsdp_kwargs.get("device_mesh"), tuple):
             from torch.distributed.device_mesh import init_device_mesh
 
-            self._fsdp_kwargs["device_mesh"] = init_device_mesh("cuda", self._fsdp_kwargs["device_mesh"])
+            self._fsdp_kwargs["device_mesh"] = init_device_mesh(self.root_device.type, self._fsdp_kwargs["device_mesh"])
 
     @override
     def setup_module_and_optimizers(
@@ -393,7 +393,7 @@ class FSDPStrategy(ParallelStrategy, _Sharded):
     def barrier(self, *args: Any, **kwargs: Any) -> None:
         if not _distributed_is_initialized():
             return
-        if torch.distributed.get_backend() == "nccl":
+        if torch.distributed.get_backend() in ("nccl", "hccl"):
             torch.distributed.barrier(device_ids=[self.root_device.index])
         else:
             torch.distributed.barrier()
