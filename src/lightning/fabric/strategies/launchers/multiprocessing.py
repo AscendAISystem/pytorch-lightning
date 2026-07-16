@@ -26,6 +26,7 @@ from torch.nn import Module
 from typing_extensions import override
 
 from lightning.fabric.accelerators.cpu import CPUAccelerator
+from lightning.fabric.accelerators.cuda import is_cuda_available
 from lightning.fabric.strategies.launchers.launcher import _Launcher
 from lightning.fabric.utilities.apply_func import move_data_to_device
 from lightning.fabric.utilities.distributed import _set_num_threads_if_needed
@@ -195,6 +196,10 @@ def _check_bad_cuda_fork() -> None:
     Lightning users.
 
     """
+    # Skip the check when CUDA is not available (e.g., NPU-only environments)
+    if not is_cuda_available():
+        return
+
     # Use PyTorch's internal check for bad fork state, which is more accurate than just checking if CUDA
     # is initialized. This allows passive CUDA initialization (e.g., from library imports or device queries)
     # while still catching actual problematic cases where CUDA context was created before forking.

@@ -74,6 +74,11 @@ class TransformerEnginePrecision(Precision):
     ) -> None:
         if not _TRANSFORMER_ENGINE_AVAILABLE:
             raise ModuleNotFoundError(str(_TRANSFORMER_ENGINE_AVAILABLE))
+        if getattr(torch, "npu", None) is not None and torch.npu.is_available():
+            raise RuntimeError(
+                "`TransformerEnginePrecision` is not supported on NPU devices. "
+                "Found NPU device(s). Please use a different precision plugin."
+            )
         from transformer_engine.common.recipe import DelayedScaling
 
         if recipe is None:

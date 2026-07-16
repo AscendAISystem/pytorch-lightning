@@ -206,6 +206,11 @@ def _replace_param(
 def _import_bitsandbytes() -> ModuleType:
     if not _BITSANDBYTES_AVAILABLE:
         raise ModuleNotFoundError(str(_BITSANDBYTES_AVAILABLE))
+    if getattr(torch, "npu", None) is not None and torch.npu.is_available():
+        raise RuntimeError(
+            "`BitsandbytesPrecision` is not supported on NPU devices. "
+            "Found NPU device(s). Please use a different precision plugin."
+        )
     # configuration for bitsandbytes before import
     nowelcome_set = "BITSANDBYTES_NOWELCOME" in os.environ
     if not nowelcome_set:

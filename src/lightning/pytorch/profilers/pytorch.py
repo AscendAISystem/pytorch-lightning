@@ -523,9 +523,16 @@ class PyTorchProfiler(Profiler):
             return
 
         if self._emit_nvtx:
-            if self._parent_profiler is None:
-                self._parent_profiler = torch.cuda.profiler.profile()
-            self.profiler = self._create_profiler(torch.autograd.profiler.emit_nvtx)
+            if is_cuda_available():
+                if self._parent_profiler is None:
+                    self._parent_profiler = torch.cuda.profiler.profile()
+                self.profiler = self._create_profiler(torch.autograd.profiler.emit_nvtx)
+            else:
+                # When CUDA is not available (e.g., NPU), fall back to the standard profiler
+                self._parent_profiler = None
+                self.profiler = self._create_profiler(
+                    torch.profiler.profile if _KINETO_AVAILABLE else torch.autograd.profiler.profile
+                )
         else:
             self._parent_profiler = None
             self.profiler = self._create_profiler(
