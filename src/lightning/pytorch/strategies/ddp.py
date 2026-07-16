@@ -189,21 +189,25 @@ class DDPStrategy(ParallelStrategy):
     def _setup_model(self, model: Module) -> DistributedDataParallel:
         """Wraps the model into a :class:`~torch.nn.parallel.distributed.DistributedDataParallel` module."""
         device_ids = self.determine_ddp_device_ids()
-        ctx: Union[torch.cuda.StreamContext, nullcontext] = nullcontext()
+        ctx: Any = nullcontext()
 
         log.debug(f"setting up DDP model with device ids: {device_ids}, kwargs: {self._ddp_kwargs}")
         # https://pytorch.org/docs/stable/notes/cuda.html#id5
         if device_ids is not None:
-            capturing = torch.cuda.is_current_stream_capturing()
-            if capturing:
-                # DDP must be initialized on a side-stream for CUDA graph whole-network capture.
-                # The resulting AccumulateGrad stream mismatch is intentional in this case.
-                # See: https://pytorch.org/docs/stable/notes/cuda.html#id5
-                ctx = torch.cuda.stream(torch.cuda.Stream())
-                torch.autograd.graph.set_warn_on_accumulate_grad_stream_mismatch(False)
-            else:
-                # Default stream avoids AccumulateGrad stream mismatch warnings during normal training.
-                ctx = torch.cuda.stream(torch.cuda.default_stream())
+            if self.root_device.type == "cuda":
+                capturing = torch.cuda.is_current_stream_capturing()
+                if capturing:
+                    # DDP must be initialized on a side-stream for CUDA graph whole-network capture.
+                    # The resulting AccumulateGrad stream mismatch is intentional in this case.
+                    # See: https://pytorch.org/docs/stable/notes/cuda.html#id5
+                    ctx = torch.cuda.stream(torch.cuda.Stream())
+                    torch.autograd.graph.set_warn_on_accumulate_grad_stream_mismatch(False)
+                else:
+                    # Default stream avoids AccumulateGrad stream mismatch warnings during normal training.
+                    ctx = torch.cuda.stream(torch.cuda.default_stream())
+            elif self.root_device.type == "npu" and hasattr(torch, "npu"):
+                # NPU does not support is_current_stream_capturing; use default stream
+                ctx = torch.npu.stream(torch.npu.default_stream())
         with ctx:
             return DistributedDataParallel(module=model, device_ids=device_ids, **self._ddp_kwargs)
 
@@ -231,9 +235,9 @@ class DDPStrategy(ParallelStrategy):
 
     def _register_ddp_hooks(self) -> None:
         log.debug(f"{self.__class__.__name__}: registering ddp hooks")
-        # currently, DDP communication hooks only work with NCCL backend and SPSD (single process single device) mode
+        # currently, DDP communication hooks only work with NCCL/HCCL backend and SPSD (single process single device) mode
         # https://github.com/pytorch/pytorch/blob/v1.8.0/torch/nn/parallel/distributed.py#L1080-L1084
-        if self.root_device.type == "cuda":
+        if self.root_device.type in ("cuda", "npu"):
             assert isinstance(self.model, DistributedDataParallel)
             _register_ddp_comm_hook(
                 model=self.model,
@@ -309,7 +313,7 @@ class DDPStrategy(ParallelStrategy):
         if not _distributed_is_initialized():
             return
 
-        if torch.distributed.get_backend() == "nccl":
+        if torch.distributed.get_backend() in ("nccl", "hccl"):
             torch.distributed.barrier(device_ids=self.determine_ddp_device_ids())
         else:
             torch.distributed.barrier()
