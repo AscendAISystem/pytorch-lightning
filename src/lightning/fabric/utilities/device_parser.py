@@ -155,17 +155,19 @@ def _normalize_parse_gpu_input_to_list(
     return list(range(gpus))
 
 
-def _get_all_available_gpus(include_cuda: bool = False, include_mps: bool = False) -> list[int]:
+def _get_all_available_gpus(include_cuda: bool = False, include_mps: bool = False, include_npu: bool = False) -> list[int]:
     """
     Returns:
         A list of all available GPUs
     """
     from lightning.fabric.accelerators.cuda import _get_all_visible_cuda_devices
     from lightning.fabric.accelerators.mps import _get_all_available_mps_gpus
+    from lightning.fabric.accelerators.npu import _get_all_visible_npu_devices
 
     cuda_gpus = _get_all_visible_cuda_devices() if include_cuda else []
     mps_gpus = _get_all_available_mps_gpus() if include_mps else []
-    return cuda_gpus + mps_gpus
+    npu_gpus = _get_all_visible_npu_devices() if include_npu else []
+    return cuda_gpus + mps_gpus + npu_gpus
 
 
 def _check_unique(device_ids: list[int]) -> None:
@@ -218,4 +220,8 @@ def _select_auto_accelerator() -> str:
         return "mps"
     if CUDAAccelerator.is_available():
         return "cuda"
+    from lightning.fabric.accelerators.npu import NPUAccelerator
+
+    if NPUAccelerator.is_available():
+        return "npu"
     return "cpu"

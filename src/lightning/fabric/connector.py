@@ -23,6 +23,7 @@ from lightning.fabric.accelerators import ACCELERATOR_REGISTRY
 from lightning.fabric.accelerators.accelerator import Accelerator
 from lightning.fabric.accelerators.cuda import CUDAAccelerator
 from lightning.fabric.accelerators.mps import MPSAccelerator
+from lightning.fabric.accelerators.npu import NPUAccelerator
 from lightning.fabric.accelerators.xla import XLAAccelerator
 from lightning.fabric.plugins import (
     BitsandbytesPrecision,
@@ -328,6 +329,10 @@ class _Connector:
     def _choose_gpu_accelerator_backend() -> str:
         if MPSAccelerator.is_available():
             return "mps"
+        from lightning.fabric.accelerators.npu import NPUAccelerator
+
+        if NPUAccelerator.is_available():
+            return "npu"
         if CUDAAccelerator.is_available():
             return "cuda"
         raise RuntimeError("No supported gpu backend found!")
@@ -400,8 +405,8 @@ class _Connector:
         if self._num_nodes_flag > 1:
             return "ddp"
         if len(self._parallel_devices) <= 1:
-            if isinstance(self._accelerator_flag, (CUDAAccelerator, MPSAccelerator)) or (
-                isinstance(self._accelerator_flag, str) and self._accelerator_flag in ("cuda", "gpu", "mps")
+            if isinstance(self._accelerator_flag, (CUDAAccelerator, MPSAccelerator, NPUAccelerator)) or (
+                isinstance(self._accelerator_flag, str) and self._accelerator_flag in ("cuda", "gpu", "mps", "npu")
             ):
                 device = _determine_root_gpu_device(self._parallel_devices)
             else:
@@ -432,7 +437,7 @@ class _Connector:
             )
         if (
             strategy_flag in _FSDP_ALIASES or type(self._strategy_flag) is FSDPStrategy
-        ) and self._accelerator_flag not in ("cuda", "gpu"):
+        ) and self._accelerator_flag not in ("cuda", "gpu", "npu"):
             raise ValueError(
                 "You selected the FSDP strategy but FSDP is only available on GPU. Set `Fabric(accelerator='gpu', ...)`"
                 " to continue or select a different strategy."
@@ -492,7 +497,7 @@ class _Connector:
                 if self._precision_input == "16-mixed"
                 else "Using bfloat16 Automatic Mixed Precision (AMP)"
             )
-            device = self._accelerator_flag if self._accelerator_flag in ("cpu", "mps") else "cuda"
+            device = self._accelerator_flag if self._accelerator_flag in ("cpu", "mps", "npu") else "cuda"
             return MixedPrecision(precision=self._precision_input, device=device)
 
         raise RuntimeError("No precision set")

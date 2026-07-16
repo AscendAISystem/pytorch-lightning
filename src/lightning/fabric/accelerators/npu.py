@@ -111,3 +111,12 @@ class NPUAccelerator(Accelerator):
             cls,
             description=cls.__name__,
         )
+
+
+def _get_all_visible_npu_devices() -> list[int]:
+    """Returns a list of all visible NPU devices.
+
+    Returns:
+        A list of all available NPU device indices.
+    """
+    return list(range(NPUAccelerator.auto_device_count()))

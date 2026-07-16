@@ -35,6 +35,7 @@ from lightning.pytorch.accelerators import AcceleratorRegistry
 from lightning.pytorch.accelerators.accelerator import Accelerator
 from lightning.pytorch.accelerators.cuda import CUDAAccelerator
 from lightning.pytorch.accelerators.mps import MPSAccelerator
+from lightning.pytorch.accelerators.npu import NPUAccelerator
 from lightning.pytorch.accelerators.xla import XLAAccelerator
 from lightning.pytorch.plugins import (
     _PLUGIN_INPUT,
@@ -336,6 +337,10 @@ class _AcceleratorConnector:
     def _choose_gpu_accelerator_backend() -> str:
         if MPSAccelerator.is_available():
             return "mps"
+        from lightning.pytorch.accelerators.npu import NPUAccelerator
+
+        if NPUAccelerator.is_available():
+            return "npu"
         if CUDAAccelerator.is_available():
             return "cuda"
         raise MisconfigurationException("No supported gpu backend found!")
@@ -409,8 +414,8 @@ class _AcceleratorConnector:
         if self._num_nodes_flag > 1:
             return "ddp"
         if len(self._parallel_devices) <= 1:
-            if isinstance(self._accelerator_flag, (CUDAAccelerator, MPSAccelerator)) or (
-                isinstance(self._accelerator_flag, str) and self._accelerator_flag in ("cuda", "gpu", "mps")
+            if isinstance(self._accelerator_flag, (CUDAAccelerator, MPSAccelerator, NPUAccelerator)) or (
+                isinstance(self._accelerator_flag, str) and self._accelerator_flag in ("cuda", "gpu", "mps", "npu")
             ):
                 device = _determine_root_gpu_device(self._parallel_devices)
             else:
@@ -430,7 +435,7 @@ class _AcceleratorConnector:
 
         if (
             strategy_flag in FSDPStrategy.get_registered_strategies() or type(self._strategy_flag) is FSDPStrategy
-        ) and not (self._accelerator_flag in ("cuda", "gpu") or isinstance(self._accelerator_flag, CUDAAccelerator)):
+        ) and not (self._accelerator_flag in ("cuda", "gpu", "npu") or isinstance(self._accelerator_flag, (CUDAAccelerator, NPUAccelerator))):
             raise ValueError(
                 f"The strategy `{FSDPStrategy.strategy_name}` requires a GPU accelerator, but received "
                 f"`accelerator={self._accelerator_flag!r}`. Please set `accelerator='cuda'`, `accelerator='gpu'`,"
@@ -486,7 +491,7 @@ class _AcceleratorConnector:
             rank_zero_info(
                 f"Using {'16bit' if self._precision_flag == '16-mixed' else 'bfloat16'} Automatic Mixed Precision (AMP)"
             )
-            device = self._accelerator_flag if self._accelerator_flag in ("cpu", "mps") else "cuda"
+            device = self._accelerator_flag if self._accelerator_flag in ("cpu", "mps", "npu") else "cuda"
             return MixedPrecision(self._precision_flag, device)
 
         raise RuntimeError("No precision set")
@@ -494,9 +499,9 @@ class _AcceleratorConnector:
     def _validate_precision_choice(self) -> None:
         """Validate the combination of choices for precision, AMP type, and accelerator."""
         if isinstance(self._precision_plugin_flag, BitsandbytesPrecision) and not isinstance(
-            self.accelerator, CUDAAccelerator
+            self.accelerator, (CUDAAccelerator, NPUAccelerator)
         ):
-            raise RuntimeError("Bitsandbytes is only supported on CUDA GPUs.")
+            raise RuntimeError("Bitsandbytes is only supported on CUDA and NPU GPUs.")
         mp_precision_supported = ("32-true", "bf16-mixed", "bf16-true", "16-true")
         if (
             isinstance(self._strategy_flag, ModelParallelStrategy)
