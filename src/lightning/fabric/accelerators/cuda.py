@@ -163,6 +163,8 @@ def _is_ampere_or_later(device: Optional[torch.device] = None) -> bool:
 
 @lru_cache(1)  # show the warning only ever once
 def _check_cuda_matmul_precision(device: torch.device) -> None:
+    if device.type != "cuda":
+        return  # skip for non-CUDA devices (e.g. NPU)
     if not torch.cuda.is_available() or not _is_ampere_or_later(device):
         return
     # check that the user hasn't changed the precision already, this works for both `allow_tf32 = True` and
@@ -179,6 +181,8 @@ def _check_cuda_matmul_precision(device: torch.device) -> None:
 
 
 def _clear_cuda_memory() -> None:
+    if not torch.cuda.is_available():
+        return  # skip if CUDA is not available
     # strangely, the attribute function be undefined when torch.compile is used
     if hasattr(torch._C, "_cuda_clearCublasWorkspaces"):
         # https://github.com/pytorch/pytorch/issues/95668

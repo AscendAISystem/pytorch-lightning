@@ -635,6 +635,10 @@ def get_available_flops(device: torch.device, dtype: Union[torch.dtype, str]) ->
             return None
         return int(dtype_to_flops[dtype])
 
+    if device.type == "npu":
+        rank_zero_warn(f"FLOPs not available for NPU device {device}")
+        return None
+
     if device.type == "xla":
         from lightning.fabric.accelerators.xla import _XLA_GREATER_EQUAL_2_1
 

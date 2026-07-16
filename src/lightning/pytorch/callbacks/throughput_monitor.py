@@ -126,9 +126,12 @@ class ThroughputMonitor(Callback):
         assert stage is not None
         throughput = self._throughputs[stage]
 
-        if trainer.strategy.root_device.type == "cuda":
+        if trainer.strategy.root_device.type in ("cuda", "npu"):
             # required or else perf_counter() won't be correct
-            torch.cuda.synchronize()
+            if trainer.strategy.root_device.type == "cuda":
+                torch.cuda.synchronize()
+            elif trainer.strategy.root_device.type == "npu" and hasattr(torch, "npu"):
+                torch.npu.synchronize()
 
         elapsed = time.perf_counter() - self._t0s[stage]
         if self.length_fn is not None:
