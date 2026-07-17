@@ -27,7 +27,7 @@ from lightning.fabric.utilities.types import _DEVICE
 if TYPE_CHECKING:
     import numpy as np
 
-_BLOCKING_DEVICE_TYPES = ("cpu", "mps")
+_BLOCKING_DEVICE_TYPES = ("cpu", "mps", "npu")
 
 
 def _from_numpy(value: "np.ndarray", device: _DEVICE) -> Tensor:
